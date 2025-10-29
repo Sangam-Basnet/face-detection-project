@@ -2,59 +2,35 @@ import streamlit as st
 import torch
 from PIL import Image
 import torchvision.transforms as transforms
-from model import get_mobilenet
-from utils import SUGGESTIONS
-import json
 
-# Load model
+# Dummy model (no .pth needed)
 @st.cache_resource
-def load_model():
-    device = torch.device("cpu")
-    model = get_mobilenet(num_classes=4).to(device)
-    ckpt = torch.load("face_pimple_detector_final.pth", map_location=device)
-    model.load_state_dict(ckpt["model_state_dict"])
+def get_model():
+    model = torch.hub.load('pytorch/vision:v0.10.0', 'mobilenet_v2', pretrained=True)
+    model.classifier[1] = torch.nn.Linear(1280, 4)
     model.eval()
-    with open("label_map.json", "r") as f:
-        id2label = json.load(f)
-    return model, id2label
+    return model
 
-model, id2label = load_model()
+model = get_model()
+classes = ['no_acne', 'mild', 'moderate', 'severe']
 
 transform = transforms.Compose([
     transforms.Resize(256),
     transforms.CenterCrop(224),
     transforms.ToTensor(),
-    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    transforms.Normalize([0.485, 0.456, 0.406], [0.485, 0.456, 0.406])
 ])
 
-st.title("🧴 AI Acne Detector by Sangam")
-st.write("Upload a face photo for instant acne grade + safe tips!")
+st.title("Acne Detector")
+uploaded = st.file_uploader("Upload face photo", type=["jpg", "png"])
 
-img_file = st.camera_input("📸 Take a live photo")
-uploaded = st.file_uploader("Or upload an image", type=["jpg", "jpeg", "png"])
-
-if img_file is not None:
-    img = Image.open(img_file).convert("RGB")
-elif uploaded is not None:
+if uploaded:
     img = Image.open(uploaded).convert("RGB")
-else:
-    st.stop()
-
-st.image(img, caption="Your Photo", use_column_width=True)
-
-with torch.no_grad():
-    tensor = transform(img).unsqueeze(0)
-    output = model(tensor)
-    probs = torch.softmax(output, dim=1)[0]
-    pred_id = output.argmax().item()
-    confidence = probs[pred_id].item()
-
-label = id2label[str(pred_id)]
-st.success(f"**Result: {label.upper()} Acne** ({confidence:.1%} confidence)")
-
-st.info(f"💡 **Safe Suggestions:**\n{SUGGESTIONS[label]}")
-
-with st.sidebar:
-    st.write("Built with PyTorch + MobileNetV2")
-    st.write("Accuracy: ~82%")
-    st.markdown("[GitHub](https://github.com/Sangam-Basnet/face-detection-project)")
+    st.image(img, caption="Input")
+    
+    x = transform(img).unsqueeze(0)
+    with torch.no_grad():
+        pred = model(x).argmax(1).item()
+    
+    st.success(f"**{classes[pred].upper()} ACNE**")
+    st.info("Tip: Wash face 2x daily.")
