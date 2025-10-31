@@ -4,12 +4,17 @@ from PIL import Image
 import torchvision.transforms as transforms
 
 # Load model (pretrained dummy)
+import torch
+import torchvision.models as models
+import streamlit as st
+
 @st.cache_resource
 def get_model():
-    model = torch.hub.load('pytorch/vision:v0.10.0', 'mobilenet_v2', pretrained=True)
+    model = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.IMAGENET1K_V1)
     model.classifier[1] = torch.nn.Linear(1280, 4)
     model.eval()
     return model
+
 
 model = get_model()
 classes = ['No Acne', 'Mild', 'Moderate', 'Severe']
